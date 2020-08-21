@@ -1,30 +1,117 @@
 #' Render a reprex
 #'
-#' Given some R code on the clipboard, in an expression, or in a file, this
-#' function runs it via \code{\link[rmarkdown]{render}}. The resulting bit of
-#' Markdown is the primary output. It will be ready and waiting on the
-#' clipboard, for pasting into a GitHub issue or to stackoverflow. Optionally,
-#' the R code and Markdown will be left behind in files. An HTML preview will
-#' display in RStudio's Viewer pane, if available, or in the default browser
-#' otherwise.
+#' @description
+#' Run a bit of R code using [rmarkdown::render()] and write the rendered result
+#' to user's clipboard. The goal is to make it easy to share a small
+#' reproducible example ("reprex"), e.g., in a GitHub issue. Reprex source can
+#' be
 #'
-#' @param x A code expression. If not given, retrieves code from the clipboard.
-#' @param infile Path to \code{.R} file containing reprex code
-#' @param venue "gh" for GitHub or "so" for stackoverflow
-#' @param outfile Desired stub for output \code{.R}, \code{.md}, and
-#'   \code{.html} files for reproducible example. If \code{NULL}, keeps them in
-#'   temporary files. At this point, outfiles are deposited in current working
-#'   directory, but the goal is to consult options for a place where you keep
-#'   all such snippets.
-#' @param show Whether to show the output in a viewer (RStudio or browser)
-#' @param si Whether to include the results of
-#'   \code{\link[devtools]{session_info}}, if available, or
-#'   \code{\link{sessionInfo}} at the end of the reprex.
-#' @param upload.fun Function that is valid for the \code{upload.fun}
-#'   \href{http://yihui.name/knitr/options/}{\code{knitr} option}, for uploading
-#'   and linking images stored on the web. Defaults to
-#'   \code{\link[knitr]{imgur_upload}}.
+#' * read from clipboard
+#' * read from current selection or active document in RStudio
+#'   (with [reprex_addin()])
+#' * provided directly as expression, character vector, or string
+#' * read from file
 #'
+#' reprex can also be used for syntax highlighting (with or without rendering);
+#' see below for more.
+#'
+#' @section Details:
+#' The usual "code + commented output" is returned invisibly, put on the
+#' clipboard, and written to file. An HTML preview displays in RStudio's Viewer
+#' pane, if available, or in the default browser, otherwise. Leading `"> "`
+#' prompts, are stripped from the input code. Read more at
+#' <https://reprex.tidyverse.org/>.
+#'
+#' reprex sets specific [knitr options](http://yihui.name/knitr/options/):
+#' * Chunk options default to `collapse = TRUE`, `comment = "#>"`,
+#'   `error = TRUE`. Note that `error = TRUE`, because a common use case is bug
+#'   reporting.
+#' * reprex also sets knitr's `upload.fun`. It defaults to
+#'   [knitr::imgur_upload()] so figures produced by the reprex appear properly
+#'   on GitHub, Stack Overflow, or Discourse. Note that this function requires
+#'   the packages httr & xml2 or RCurl & XML, depending on your knitr version.
+#'   When `venue = "r"`, `upload.fun` is set to `identity`, so that figures
+#'   remain local. In that case, you may also want to set `outfile`.
+#' You can supplement or override these options with special comments in your
+#' code (see examples).
+#'
+#' @section Syntax highlighting:
+#' A secondary use case for reprex is to produce syntax highlighted code
+#' snippets, with or without rendering, to paste into presentation software,
+#' such as Keynote or PowerPoint. Use `venue = "rtf"`.
+#'
+#' This feature is experimental and currently rather limited. It probably only
+#' works on macOS and requires the installation of the
+#' [highlight](http://www.andre-simon.de/doku/highlight/en/highlight.php)
+#' command line tool, which can be installed via
+#' [homebrew](https://formulae.brew.sh/formula/highlight). This venue is
+#' discussed in [an
+#' article](https://reprex.tidyverse.org/articles/articles/rtf.html)
+#'
+#' @param x An expression. If not given, `reprex()` looks for code in
+#'   `input` or on the clipboard, in that order.
+#' @param input Character. If has length one and lacks a terminating newline,
+#'   interpreted as the path to a file containing reprex code. Otherwise,
+#'   assumed to hold reprex code as character vector.
+#' @param outfile Optional basename for output files. When `NULL`
+#'   (default), reprex writes to temp files below the session temp directory. If
+#'   `outfile = "foo"`, expect output files in current working directory,
+#'   like `foo_reprex.R`, `foo_reprex.md`, and, if `venue = "r"`,
+#'   `foo_rendered.R`. If `outfile = NA`, expect output files in
+#'   a location and with basename derived from `input`, if sensible, or in
+#'   current working directory with basename derived from [tempfile()]
+#'   otherwise.
+#' @param venue Character. Must be one of the following (case insensitive):
+#' * "gh" for [GitHub-Flavored Markdown](https://github.github.com/gfm/), the
+#'   default
+#' * "r" for a runnable R script, with commented output interleaved
+#' * "rtf" for
+#'   [Rich Text Format](https://en.wikipedia.org/wiki/Rich_Text_Format)
+#'   (not supported for un-reprexing)
+#' * "html" for an HTML fragment suitable for inclusion in a larger HTML
+#'   document (not supported for un-reprexing)
+#' * "so" for
+#'   [Stack Overflow Markdown](https://stackoverflow.com/editing-help#syntax-highlighting).
+#'   Note: this is just an alias for "gh", since Stack Overflow started to
+#'   support CommonMark-style fenced code blocks in January 2019.
+#' * "ds" for Discourse, e.g.,
+#'   [community.rstudio.com](https://community.rstudio.com). Note: this is
+#'   currently just an alias for "gh".
+#' @param advertise Logical. Whether to include a footer that describes when and
+#'   how the reprex was created. If unspecified, the option `reprex.advertise`
+#'   is consulted and, if that is not defined, default is `TRUE` for venues
+#'   `"gh"`, `"html"`, `"so"`, `"ds"` and `FALSE` for `"r"` and `"rtf"`.
+#' @param session_info Logical. Whether to include
+#'   [sessioninfo::session_info()], if available, or [sessionInfo()] at the end
+#'   of the reprex. When `venue` is "gh", the session info is wrapped in a
+#'   collapsible details tag. Read more about [opt()].
+#' @param style Logical. Whether to set the knitr chunk option `tidy =
+#'   "styler"`, which re-styles code with the [styler
+#'   package](https://styler.r-lib.org). Read more about [opt()].
+#' @param comment Character. Prefix with which to comment out output, defaults
+#'   to `"#>"`. Read more about [opt()].
+#' @param render Logical. Whether to call [rmarkdown::render()] on the templated
+#'   reprex, i.e. whether to actually run the code. Defaults to `TRUE`. Exists
+#'   primarily for the sake of internal testing.
+#' @param tidyverse_quiet Logical. Sets the options `tidyverse.quiet` and
+#'   `tidymodels.quiet`, which suppress (`TRUE`, the default) or include
+#'   (`FALSE`) the startup messages for the tidyverse and tidymodels packages.
+#'   Read more about [opt()].
+#' @param std_out_err Logical. Whether to append a section for output sent to
+#'   stdout and stderr by the reprex rendering process. This can be necessary to
+#'   reveal output if the reprex spawns child processes or `system()` calls.
+#'   Note this cannot be properly interleaved with output from the main R
+#'   process, nor is there any guarantee that the lines from standard output and
+#'   standard error are in correct chronological order. See [callr::r()] for
+#'   more. Read more about [opt()].
+#' @param html_preview Logical. Whether to show rendered output in a viewer
+#'   (RStudio or browser). Always `FALSE` in a noninteractive session. Read more
+#'   about [opt()].
+#' @param show Deprecated, in favor of `html_preview`, for greater consistency
+#' with other R Markdown output formats.
+#' @param si Deprecated, in favor of `session_info`.
+#'
+#' @return Character vector of rendered reprex, invisibly.
 #' @examples
 #' \dontrun{
 #' # put some code like this on the clipboard
@@ -32,102 +119,172 @@
 #' # mean(y)
 #' reprex()
 #'
-#' # or provide it as code in brackets:
+#' # provide code as an expression
+#' reprex(rbinom(3, size = 10, prob = 0.5))
 #' reprex({y <- 1:4; mean(y)})
+#' reprex({y <- 1:4; mean(y)}, style = TRUE)
 #'
 #' # note that you can include newlines in those brackets
+#' # in fact, that is often a good idea
 #' reprex({
 #'   x <- 1:4
 #'   y <- 2:5
 #'   x + y
 #' })
+#'
+#' ## provide code via character vector
+#' reprex(input = c("x <- 1:4", "y <- 2:5", "x + y"))
+#'
+#' ## if just one line, terminate with '\n'
+#' reprex(input = "rnorm(3)\n")
+#'
+#' ## customize the output comment prefix
+#' reprex(rbinom(3, size = 10, prob = 0.5), comment = "#;-)")
+#'
+#' # override a default chunk option
+#' reprex({
+#'   #+ setup, include = FALSE
+#'   knitr::opts_chunk$set(collapse = FALSE)
+#'
+#'   #+ actual-reprex-code
+#'   (y <- 1:4)
+#'   median(y)
+#' })
+#'
+#' # add prose, use general markdown formatting
+#' reprex({
+#'   #' # A Big Heading
+#'   #'
+#'   #' Look at my cute example. I love the
+#'   #' [reprex](https://github.com/tidyverse/reprex#readme) package!
+#'   y <- 1:4
+#'   mean(y)
+#' }, advertise = FALSE)
+#'
+#' # read reprex from file
+#' tmp <- file.path(tempdir(), "foofy.R")
+#' writeLines(c("x <- 1:4", "mean(x)"), tmp)
+#' reprex(input = tmp)
+#'
+#' # read from file and write to similarly-named outfiles
+#' reprex(input = tmp, outfile = NA)
+#' list.files(dirname(tmp), pattern = "foofy")
+#'
+#' # clean up
+#' file.remove(list.files(dirname(tmp), pattern = "foofy", full.names = TRUE))
+#'
+#' # write rendered reprex to file
+#' tmp <- file.path(tempdir(), "foofy")
+#' reprex({
+#'   x <- 1:4
+#'   y <- 2:5
+#'   x + y
+#' }, outfile = tmp)
+#' list.files(dirname(tmp), pattern = "foofy")
+#'
+#' # clean up
+#' file.remove(list.files(dirname(tmp), pattern = "foofy", full.names = TRUE))
+#'
+#' # write reprex to file AND keep figure local too, i.e. don't post to imgur
+#' tmp <- file.path(tempdir(), "foofy")
+#' reprex({
+#'   #+ setup, include = FALSE
+#'   knitr::opts_knit$set(upload.fun = identity)
+#'
+#'   #+ actual-reprex-code
+#'   #' Some prose
+#'   ## regular comment
+#'   (x <- 1:4)
+#'   median(x)
+#'   plot(x)
+#'   }, outfile = tmp)
+#' list.files(dirname(tmp), pattern = "foofy")
+#'
+#' # clean up
+#' unlink(
+#'   list.files(dirname(tmp), pattern = "foofy", full.names = TRUE),
+#'   recursive = TRUE
+#' )
+#'
+#' ## target venue = R, also good for email or Slack snippets
+#' ret <- reprex({
+#'   x <- 1:4
+#'   y <- 2:5
+#'   x + y
+#' }, venue = "R")
+#' ret
+#'
+#' ## target venue = html
+#' ret <- reprex({
+#'   x <- 1:4
+#'   y <- 2:5
+#'   x + y
+#' }, venue = "html")
+#' ret
+#'
+#' ## include prompt and don't comment the output
+#' ## use this when you want to make your code hard to execute :)
+#' reprex({
+#'   #+ setup, include = FALSE
+#'   knitr::opts_chunk$set(comment = NA, prompt = TRUE)
+#'
+#'   #+ actual-reprex-code
+#'   x <- 1:4
+#'   y <- 2:5
+#'   x + y
+#' })
+#'
+#' ## leading prompts are stripped from source
+#' reprex(input = c("> x <- 1:3", "> median(x)"))
 #' }
 #'
+#' @import rlang
+#' @import fs
 #' @export
-reprex <- function(x, infile = NULL, venue = c("gh", "so"), outfile = NULL,
-                   show = TRUE, si = FALSE,
-                   upload.fun = knitr::imgur_upload) {
+reprex <- function(x = NULL,
+                   input = NULL, outfile = NULL,
+                   venue = c("gh", "r", "rtf", "html", "so", "ds"),
 
-  venue <- match.arg(venue)
+                   render = TRUE,
 
-  deparsed <- deparse(substitute(x))
-  if (identical(deparsed, "")) {
-    # no argument was given; use either infile or clipboard
-    if (!is.null(infile)) {
-      the_source <- readLines(infile)
-    } else {
-      the_source <- clipr::read_clip()
-    }
-  } else {
-    if (!is.null(infile)) {
-      stop("Cannot provide both expression and input file")
-    }
-    # adjust the deparsed expression
-    the_source <- format_deparsed(deparsed)
+                   advertise       = NULL,
+                   session_info    = opt(FALSE),
+                   style           = opt(FALSE),
+                   comment         = opt("#>"),
+                   tidyverse_quiet = opt(TRUE),
+                   std_out_err     = opt(FALSE),
+                   html_preview    = opt(TRUE),
+                   show, si) {
+  if (!missing(show)) {
+    html_preview <- show
+    warning(
+      "`show` is deprecated, please use `html_preview` instead",
+      immediate. = TRUE, call. = FALSE
+    )
   }
 
-  the_source <- ensure_not_empty(the_source)
-  the_source <- ensure_not_dogfood(the_source)
-  the_source <- add_header(the_source)
-  the_source <- add_si(the_source, si)
-
-  ## TO DO: come back here once it's clear how outfile will be used
-  ## i.e., is it going to be like original slug concept?
-  r_file <- if (!is.null(outfile)) { outfile } else { tempfile() }
-  r_file <- add_ext(r_file)
-
-  writeLines(the_source, r_file)
-
-  reprex_(r_file, venue, show, upload.fun)
-}
-
-reprex_ <- function(r_file, venue = c("gh", "so"), show = TRUE,
-                    upload.fun = knitr::imgur_upload) {
-
-  venue <- match.arg(venue)
-
-  knitr::opts_knit$set(upload.fun = upload.fun)
-
-  rendargs <- list(
-    input = r_file,
-    output_format = switch(
-      venue,
-      gh = rmarkdown::md_document(variant = "markdown_github"),
-      so = rmarkdown::md_document()
-    ),
-    envir = new.env(parent = as.environment(2)),
-    quiet = TRUE)
-
-  rendout <-
-    suppressMessages(try(do.call(rmarkdown::render, rendargs), silent = TRUE))
-
-  if(inherits(rendout, "try-error")) {
-    stop("\nCannot render this code. Maybe the clipboard contents",
-         " are not what you think?\n",
-         rendout)
-  } else {
-    md_outfile <- rendout
+  if (!missing(si)) {
+    session_info <- si
+    warning(
+      "`si` is deprecated, please use `session_info` instead",
+      immediate. = TRUE, call. = FALSE
+    )
   }
 
-  if(venue == "so") {
-    md_safe <- readLines(md_outfile)
-    writeLines(c("<!-- language: lang-r -->\n", md_safe), md_outfile)
-  }
+  reprex_impl(
+    x_expr = substitute(x),
+    input = input, outfile = outfile,
+    venue = venue,
 
-  output_lines <- readLines(md_outfile)
-  clipr::write_clip(output_lines)
+    render = render,
+    new_session = TRUE,
 
-  html_outfile <- gsub("\\.R", ".html", r_file)
-  rmarkdown::render(md_outfile, output_file = html_outfile, quiet = TRUE)
-
-  viewer <- getOption("viewer")
-
-  if (!is.null(viewer) && show) {
-    viewer(html_outfile)
-  } else if (show) {
-    utils::browseURL(html_outfile)
-  }
-
-  # return the string output invisibly, useful in tests
-  invisible(output_lines)
+    advertise       = advertise,
+    session_info    = session_info,
+    style           = style,
+    html_preview    = html_preview,
+    comment         = comment,
+    tidyverse_quiet = tidyverse_quiet,
+    std_out_err     = std_out_err
+  )
 }

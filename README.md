@@ -1,46 +1,80 @@
-<!-- README.md is generated from README.Rmd. Please edit that file -->
-[![Project Status: Wip - Initial development is in progress, but there has not yet been a stable, usable release suitable for the public.](http://www.repostatus.org/badges/0.1.0/wip.svg)](http://www.repostatus.org/#wip) [![](http://www.r-pkg.org/badges/version/reprex)](http://www.r-pkg.org/pkg/reprex)
+# reprex <img src="man/figures/logo.png" align="right" height="139" />
 
-<!-- [![Build Status](https://travis-ci.org/jennybc/reprex.svg?branch=master)](https://travis-ci.org/jennybc/reprex) -->
-### reprex
+<!-- badges: start -->
+[![CRAN\_Status\_Badge](https://www.r-pkg.org/badges/version/reprex)](https://cran.r-project.org/package=reprex)
+[![R build status](https://github.com/tidyverse/reprex/workflows/R-CMD-check/badge.svg)](https://github.com/tidyverse/reprex/actions)
+[![Codecov test coverage](https://codecov.io/gh/tidyverse/reprex/branch/master/graph/badge.svg)](https://codecov.io/gh/tidyverse/reprex?branch=master)
+[![lifecycle](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://www.tidyverse.org/lifecycle/#stable)
+<!-- badges: end -->
 
-<a href="https://nypdecider.files.wordpress.com/2014/08/help-me-help-you.gif"> <img src="internal/help-me-help-you-still-500-c256.png" width="275" align="right"> </a>
+## Overview
 
-Prepare reproducible examples for posting to [GitHub issues](https://guides.github.com/features/issues/), [Stack Overflow](http://stackoverflow.com/questions/tagged/r), etc.
+Prepare reprexes for posting to [GitHub
+issues](https://guides.github.com/features/issues/),
+[StackOverflow](https://stackoverflow.com/questions/tagged/r), or [Slack
+snippets](https://get.slack.help/hc/en-us/articles/204145658-Create-a-snippet).
+What is a `reprex`? It’s a **repr**oducible **ex**ample, as coined by
+[Romain
+Francois](https://twitter.com/romain_francois/status/530011023743655936).
 
--   Given R code on the clipboard, in a file, or as expression,
--   run it via `rmarkdown::render()`,
--   with deliberate choices re: arguments and setup chunk.
--   Get resulting runnable code + output as markdown,
--   formatted for target venue, e.g. `gh` or `so`,
--   on the clipboard and, optionally, in a file.
--   Preview an HTML version in RStudio viewer or default browser.
+<a href="https://nypdecider.files.wordpress.com/2014/08/help-me-help-you.gif"><img src="man/figures/help-me-help-you.png" align="right" /></a>
 
-### Installation
+Given R code on the clipboard, selected in RStudio, as an expression
+(quoted or not), or in a file …
+
+  - run it via `rmarkdown::render()`,
+  - with deliberate choices re: `render()` arguments, knitr options, and
+    Pandoc options.
+
+Get resulting runnable code + output as
+
+  - Markdown, suitable for GitHub or Stack Overflow, or as
+  - R code, augmented with commented output.
+
+Result is returned invisibly, placed on the clipboard, and written to a
+file. Preview an HTML version in RStudio viewer or default browser.
+
+## Installation
+
+Install from CRAN:
 
 ``` r
-devtools::install_github("jennybc/reprex")
+install.packages("reprex")
 ```
 
-### Quick demo
+or get a development version from GitHub:
 
-Let's say you copy this code onto your clipboard:
+``` r
+devtools::install_github("tidyverse/reprex")
+```
+
+On Linux, you probably want to install
+[xclip](https://github.com/astrand/xclip) or
+[xsel](http://www.vergenet.net/~conrad/software/xsel/), so reprex can
+access the X11 clipboard. This is 'nice to have', but not mandatory. The
+usual `sudo apt-get install` or `sudo yum install` installation methods
+should work for both xclip and xsel.
+
+## Usage
+
+Let’s say you copy this code onto your clipboard:
 
     (y <- 1:4)
     mean(y)
 
-Then you load the `reprex` package and call the main function `reprex()`, where the default target venue is GitHub:
+Then call `reprex()`, where the default target venue is GitHub:
 
 ``` r
-library(reprex)
 reprex()
 ```
 
-A nicely rendered HTML preview will display in RStudio's Viewer (if you're in RStudio) or your default browser otherwise.
+A nicely rendered HTML preview will display in RStudio's Viewer (if
+you’re in RStudio) or your default browser otherwise.
 
-![html-preview](README-viewer-screenshot.png "HTML preview in RStudio")
+![](man/figures/README-viewer-screenshot.png)
 
-The relevant bit of GitHub-flavored Markdown is ready to be pasted from your clipboard:
+The relevant bit of CommonMark Markdown is ready to be pasted from
+your clipboard:
 
     ``` r
     (y <- 1:4)
@@ -49,7 +83,7 @@ The relevant bit of GitHub-flavored Markdown is ready to be pasted from your cli
     #> [1] 2.5
     ```
 
-Here's what that Markdown would look like rendered in a GitHub issue:
+Here’s what that Markdown would look like rendered in a GitHub issue:
 
 ``` r
 (y <- 1:4)
@@ -60,63 +94,50 @@ mean(y)
 
 Anyone else can copy, paste, and run this immediately.
 
-But wait, there's more!
+In addition to GitHub, this markdown also works on Stack Overflow and Discourse. Those venues can be formally requested via `venue = "so"` and `venue = "ds"`, but they are just aliases for `venue = "gh"`.
 
--   Set the target venue to Stack Overflow with `reprex(venue = "so")`.
--   By default, figures are uploaded to [imgur.com](http://imgur.com) and resulting URL is dropped into an inline image tag.
--   Alternatives to clipboard input:
-    -   `reprex(infile = "my_reprex.R")` gets the code from file
-    -   `reprex({(y <- 1:4); mean(y)})` gets code from expression
+Instead of reading from the clipboard, you can:
 
-### Reproducible examples
+  - `reprex(mean(rnorm(10)))` to get code from expression.
 
-What is a `reprex`? It's a {repr}oducible {ex}ample. Coined by Romain Francois [on twitter](https://twitter.com/romain_francois/status/530011023743655936).
+  - `reprex(input = "mean(rnorm(10))\n")` gets code from character
+    vector (detected via length or terminating newline). Leading prompts
+    are stripped from input source: `reprex(input = "> median(1:3)\n")`
+    produces same output as `reprex(input = "median(1:3)\n")`
 
-Where and why are they used?
+  - `reprex(input = "my_reprex.R")` gets code from file
 
--   A Stack Overflow question that includes a proper reprex is [much more likely to get answered](http://stackoverflow.com/help/no-one-answers), by the most knowledgeable (and therefore busy!) people.
--   A [GitHub issue](https://guides.github.com/features/issues/) that includes a proper reprex is more likely to achieve your goal: getting a bug fixed or getting a new feature, in a finite amount of time.
+  - Use one of the RStudio add-ins to use the selected text or current
+    file.
 
-What are the main requirements?
+But wait, there’s more\!
 
--   Use the smallest, simplest, most [built-in data](https://stat.ethz.ch/R-manual/R-patched/library/datasets/html/00Index.html) possible.
-    -   Think: `iris` or `mtcars`. Bore me.
-    -   If you must make some objects, minimize their size and complexity.
-    -   Get just a bit of something with `head()` or by indexing with the result of `sample()`. If anything is random, consider using `set.seed()` to make it repeatable.
-    -   `dput()` is a good way to get the code to create an object you have lying around. Copy and paste the *result* of this into your reprex. *(We might try to facilitate this in future, see [\#7](https://github.com/jennybc/reprex/issues/7).)*
-    -   Look at official examples and try to write in that style. Consider adapting one.
--   Include commands on a strict "need to run" basis.
-    -   Ruthlessly strip out anything unrelated to the specific matter at hand.
-    -   Include every single command that is required, e.g. loading specific packages via `library(foo)`.
--   Consider including info on your OS and your versions of R version and add-on packages, if it's conceivable that it matters. Use `reprex(..., si = TRUE)` for this.
--   Pack it in, pack it out, and don't take liberties with other people's computers.
-    -   If you change options, store original values at the start, do your thing, then restore them: `opar <- par(pch = 19) <blah blah blah> par(opar)`.
-    -   If you create files, delete them when you're done: `write(x, "foo.txt") <blah blah blah> file.remove("foo.txt")`.
-    -   Don't delete files or objects that you didn't create in the first place.
-    -   Don't mask built-in functions, i.e. don't define a new function named `c`.
-    -   Take advantage of R's built-in ability to create temporary files and directories. Read up on [`tempfile()` and `tempdir()`](https://stat.ethz.ch/R-manual/R-devel/library/base/html/tempfile.html).
--   Whitespace rationing is not in effect. Use good [coding style](http://adv-r.had.co.nz/Style.html).
+  - Get a runnable R script, augmented with commented output, with
+    `reprex(..., venue = "R")`. This is useful for Slack, email, etc.
 
-But won't that take time and effort?
+  - Get html with `reprex(..., venue = "html")`. Useful for sites that don't
+    support markdown.
 
--   Yes, yes it will!
--   80% of the time you will solve your own problem in the course of writing an excellent reprex. YMMV.
--   The remaining 20% of the time, you will create a reprex that is more likely to elicit the desired behavior in others.
+  - Prepare rendered, syntax-highlighted code snippets to paste into
+    Keynote or PowerPoint, with `reprex(..., venue = "rtf")`. This
+    feature is still experimental; see the [associated article](https://reprex.tidyverse.org/articles/articles/rtf.html) for more.
 
-Get more concrete details here:
+  - By default, figures are uploaded to [imgur.com](http://imgur.com)
+    and the resulting URL is dropped into an inline image tag.
 
--   [How to make a great R reproducible example?](http://stackoverflow.com/questions/5963269/how-to-make-a-great-r-reproducible-example/16532098) thread on StackOverflow
--   [How to write a reproducible example](http://adv-r.had.co.nz/Reproducibility.html) from Hadley Wickham's [Advanced R book](http://adv-r.had.co.nz)
+  - Use the `outfile` argument to control where results are left behind.
+    Use `outfile = NA` to work in current working directory.
+    
+  - Append session info via `reprex(..., session_info = TRUE)`.
 
-### Package philosophy
+  - Get clean, runnable code from wild-caught reprexes with
+    
+      - `reprex_invert()` = the opposite of `reprex()`
+      - `reprex_clean()`, e.g. when you copy/paste from GitHub or Stack
+        Overflow
+      - `reprex_rescue()`, when you’re dealing with copy/paste from R
+        Console
 
-The reprex code:
+## Code of Conduct
 
--   Must run and, therefore, should be run **by the person posting**. No faking it.
--   Should be easy for others to digest, so **they don't necessarily have to run it**. You are encouraged to include selected bits of output. :scream:
--   Should be easy for others to copy + paste + run, **iff they so choose**. Don't let inclusion of output break executability.
-
-Accomplished like so:
-
--   use `rmarkdown::render` or, under the hood, `knitr::spin` to run the code and capture output that would display in R console
--   use chunk option `comment = "#>"` to include the output while retaining executability
+Please note that the reprex project is released with a [Contributor Code of Conduct](https://contributor-covenant.org/version/1/0/0/CODE_OF_CONDUCT.html). By contributing to this project, you agree to abide by its terms.

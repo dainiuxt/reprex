@@ -1,87 +1,59 @@
-context("clipboard")
-
-# save original clipboard text so it can be restored at end of tests
-# (of course, happens only if cb_ functions work, that's the risk we take)
-original <- clipr::read_clip()
-
-test_that("Writing to, reading from, and clearing the clipboard work", {
-  # technically we don't know it was copied to clipboard as opposed to
-  # stored another way; best we can do
-  clipr::write_clip("test clipboard string")
-  expect_equal(clipr::read_clip(), "test clipboard string")
-
-  cb_clear()
-  expect_warning(ret <- clipr::read_clip())
-  expect_equal(length(ret), 0)
+## https://github.com/tidyverse/reprex/issues/152
+test_that("keep.source is TRUE inside the reprex()", {
+  skip_on_cran()
+  ret <- reprex(input = "getOption('keep.source')\n")
+  expect_match(ret, "TRUE", all = FALSE)
 })
 
-context("reprex")
-
-test_that("The reprex function with clipboard returns a knitr-d output", {
-  clipr::write_clip("y <- 1:4\nmean(y)")
-  ret <- reprex(show = FALSE)
-
-  # check it was copied to clipboard
-  expect_identical(clipr::read_clip(), ret)
-
-  expect_is(ret, "character")
-  expect_true(length(ret) > 0)
-  expect_match(ret[1], "```")
-  expect_match(ret[2], "y <-")
+test_that("reprex() works with code that deals with srcrefs", {
+  skip_on_cran()
+  ret <- reprex(
+    input = "utils::getParseData(parse(text = 'a'))\n",
+    advertise = FALSE
+  )
+  expect_known_output(print(ret), test_path("reference/srcref_reprex"))
 })
 
-
-test_that("The reprex function from an expression returns a knitr-d output", {
-  ret <- reprex({
-    y <- 1:4
-    mean(y)
-  }, show = FALSE)
-
-  # check it was copied to clipboard
-  expect_identical(clipr::read_clip(), ret)
-
-  expect_is(ret, "character")
-  expect_true(length(ret) > 0)
-  expect_match(ret[1], "```")
-  expect_match(ret[2], "y <-")
+## https://github.com/tidyverse/reprex/issues/183
+test_that("reprex() doesn't leak files by default", {
+  skip_on_cran()
+  reprex(base::writeLines("test", "test.txt"), advertise = FALSE)
+  ret <- reprex(base::readLines("test.txt"), advertise = FALSE)
+  expect_match(ret, "cannot open file 'test.txt'", all = FALSE)
 })
 
-test_that("The reprex is executed in its own environment", {
-
-  z <- "don't touch me"
-  ret <- reprex({
-    print(paste0(z, "!!!"))
-  }, show = FALSE)
-  expect_match(ret, "object 'z' not found", all = FALSE)
-
-  ret <- reprex({
-    (z <- "I touched it")
-  }, show = FALSE)
-  expect_identical(z, "don't touch me")
-
-  ## we assign to r_file because if rendering affect caller's environment, this
-  ## will break reprex_()
-  expect_match(reprex(r_file <- 0L, show = FALSE), "r_file <- 0L", all = FALSE)
-
+test_that("rmarkdown::render() context is trimmed from rlang backtrace", {
+  skip_on_cran()
+  input <- c(
+    "f <- function() rlang::abort('foo')",
+    "f()",
+    "rlang::last_error()",
+    "rlang::last_trace()"
+  )
+  ret <- reprex(input = input, advertise = FALSE)
+  expect_false(any(grepl("tryCatch", ret)))
+  expect_false(any(grepl("rmarkdown::render", ret)))
 })
 
-test_that("The si = TRUE option adds session info line", {
-  ret <- reprex({y <- 2}, show = FALSE, si = TRUE)
+test_that("rlang::last_error() and last_trace() work", {
+  skip_on_cran()
 
-  expect_true(any(ret %in% c("devtools::session_info()", "sessionInfo()")))
+  input <- c(
+    "f <- function() rlang::abort('foo')",
+    "f()",
+    "rlang::last_error()",
+    "rlang::last_trace()"
+  )
+  ret <- reprex(input = input, advertise = FALSE)
+  m <- match("rlang::last_error()", ret)
+  expect_false(grepl("Error", ret[m + 1]))
+  m <- match("rlang::last_trace()", ret)
+  expect_false(grepl("Error", ret[m + 1]))
 })
 
-test_that("Circular use is detected before render", {
-  ret <- reprex({y <- 2}, show = FALSE)
-  expect_error(reprex(show = FALSE), "isn't valid R code")
+test_that("reprex() works even if user uses fancy quotes", {
+  skip_on_cran()
+  withr::local_options(list(useFancyQuotes = TRUE))
+  # use non-default venue to force some quoted yaml to be written
+  expect_error_free(reprex(1, venue = "R"))
 })
-
-test_that("We catch error from rendering garbage input", {
-  clipr::write_clip(
-    "It really is hard to anticipate just how silly users can be.")
-  expect_error(reprex(show = FALSE), "Cannot render this code.")
-})
-
-# put original back
-clipr::write_clip(original)
-

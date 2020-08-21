@@ -1,29 +1,57 @@
-read_from_template <- function(SLUG) {
-  SLUG_path <-
-    system.file("templates", paste0(SLUG, ".R"), package = "reprex")
-  readLines(SLUG_path)
+is_toggle <- function(x) {
+  length(x) == 1 && is.logical(x) && !is.na(x)
 }
 
-
-#' format deparsed code, removing brackets and starts of lines if necessary
-#'
-#' @param deparsed A character vector from a use of deparse
-format_deparsed <- function(deparsed) {
-  # if surrounded by brackets, remove them
-  if (length(deparsed) > 0 &&
-      deparsed[1] == "{" &&
-      tail(deparsed, 1) == "}") {
-    deparsed <- tail(head(deparsed, -1), -1)
-  }
-
-  # if all lines are indented (such as in expression), indent them to same degree
-  # (note that we're not trimming *all* starting whitespace)
-  indents <- stringr::str_match(deparsed, "^\\s+")[, 1]
-  if (!any(is.na(indents))) {
-    # all are indented at least a bit
-    deparsed <- stringr::str_sub(deparsed,
-                                 start = min(stringr::str_length(indents)) + 1)
-  }
-
-  deparsed
+is_path <- function(x) {
+  length(x) == 1 && is.character(x) && !grepl("\n$", x)
 }
+
+locate_input <- function(input) {
+  if (is.null(input)) return("clipboard")
+  if (is_path(input)) {
+    "path"
+  } else {
+    "input"
+  }
+}
+
+trim_ws <- function(x) {
+  sub("\\s*$", "", sub("^\\s*", "", x))
+}
+
+trim_common_leading_ws <- function(x) {
+  m <- regexpr("^(\\s*)", x)
+  n_chars <- nchar(x)
+  n_spaces <- attr(m, which = "match.length")
+  num <- min(n_spaces[n_chars > 0])
+  substring(x, num + 1)
+}
+
+ingest_clipboard <- function() {
+  if (clipboard_available()) {
+    return(suppressWarnings(enc2utf8(clipr::read_clip())))
+  }
+  message("No input provided and clipboard is not available.")
+  character()
+}
+
+escape_regex <- function(x) {
+  chars <- c("*", ".", "?", "^", "+", "$", "|", "(", ")", "[", "]", "{", "}", "\\")
+  gsub(paste0("([\\", paste(chars, collapse = "\\"), "])"), "\\\\\\1", x, perl = TRUE)
+}
+
+escape_newlines <- function(x) {
+  gsub("\n", "\\\\n", x, perl = TRUE)
+}
+
+pandoc2.0 <- function() rmarkdown::pandoc_available("2.0")
+
+roxygen_comment <- function(x) paste0("#' ", x)
+
+r_chunk <- function(code, label = NULL) {
+  c(sprintf("```{r %s}", label %||% ""), label, code, "```")
+}
+
+backtick <- function(x) encodeString(x, quote = "`")
+
+newline <- function(x) paste0(x, "\n")

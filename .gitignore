@@ -1,7 +1,8 @@
+docs
 .Rproj.user
 .Rhistory
 .RData
 README.html
-*_REPREX_*.*
-foo.R
-help-me-help-you.gif
+inst/doc
+img/help-me-help-you.gif
+*.key
